@@ -5,13 +5,14 @@
     import { Label } from '$lib/components/ui/label'
     import { Switch } from '$lib/components/ui/switch'
     import { Checkbox } from '$lib/components/ui/checkbox'
+    import * as Select from '$lib/components/ui/select'
     import * as Card from '$lib/components/ui/card'
     import * as Alert from '$lib/components/ui/alert'
     import { AlertCircle, Loader2, LifeBuoy } from '@lucide/svelte'
     import { onMount } from 'svelte'
     import { beforeNavigate } from '$app/navigation'
     import type { PageProps } from './$types'
-    import type { ZendeskSourceConfig } from '$lib/types'
+    import { AuthType, type ZendeskSourceConfig } from '$lib/types'
 
     let { data }: PageProps = $props()
 
@@ -21,8 +22,15 @@
     let syncTickets = $state(cfg.sync_tickets ?? true)
     let syncHelpCenter = $state(cfg.sync_help_center ?? true)
 
+    type CredentialType = 'api_token' | 'access_token'
+
+    const origCredentialType: CredentialType =
+        data.authType === AuthType.BEARER_TOKEN ? 'access_token' : 'api_token'
+
+    let credentialType = $state<CredentialType>(origCredentialType)
     let email = $state(data.principalEmail ?? '')
     let apiToken = $state('')
+    let accessToken = $state('')
 
     let isSubmitting = $state(false)
     let formErrors = $state<string[]>([])
@@ -39,8 +47,10 @@
         enabled !== origEnabled ||
             syncTickets !== origSyncTickets ||
             syncHelpCenter !== origSyncHelpCenter ||
+            credentialType !== origCredentialType ||
             email !== origEmail ||
-            apiToken !== '',
+            apiToken !== '' ||
+            accessToken !== '',
     )
 
     onMount(() => {
@@ -72,11 +82,15 @@
         if (!syncTickets && !syncHelpCenter) {
             formErrors = [...formErrors, 'Select at least one thing to sync']
         }
-        if (apiToken && !email.trim()) {
-            formErrors = [...formErrors, 'Admin email is required when updating the API token']
-        }
-        if (!apiToken && email.trim() !== origEmail) {
-            formErrors = [...formErrors, 'Enter the API token to change the admin email']
+        if (credentialType === 'api_token') {
+            if (apiToken && !email.trim()) {
+                formErrors = [...formErrors, 'Admin email is required when updating the API token']
+            }
+            if (!apiToken && email.trim() !== origEmail) {
+                formErrors = [...formErrors, 'Enter the API token to change the admin email']
+            }
+        } else if (!accessToken && origCredentialType !== 'access_token') {
+            formErrors = [...formErrors, 'Access token is required']
         }
         return formErrors.length === 0
     }
@@ -172,35 +186,75 @@
                 <h3 class="text-sm font-semibold">Credentials</h3>
 
                 <div class="space-y-1.5">
-                    <Label for="email">Admin email</Label>
-                    <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        bind:value={email}
-                        placeholder="admin@example.com"
-                        autocomplete="username" />
+                    <Label for="credentialType">Credential type</Label>
+                    <Select.Root type="single" bind:value={credentialType}>
+                        <Select.Trigger id="credentialType" class="w-full cursor-pointer">
+                            {credentialType === 'api_token'
+                                ? 'API token'
+                                : 'OAuth access token (advanced)'}
+                        </Select.Trigger>
+                        <Select.Content>
+                            <Select.Item value="api_token" class="cursor-pointer"
+                                >API token</Select.Item>
+                            <Select.Item value="access_token" class="cursor-pointer"
+                                >OAuth access token (advanced)</Select.Item>
+                        </Select.Content>
+                    </Select.Root>
+                    <input type="hidden" name="credentialType" value={credentialType} />
                 </div>
 
-                <div class="space-y-1.5">
-                    <Label for="apiToken">
-                        API token
-                        <span class="text-muted-foreground ml-1 font-normal">
-                            (leave blank to keep current)
-                        </span>
-                    </Label>
-                    <Input
-                        id="apiToken"
-                        name="apiToken"
-                        type="password"
-                        bind:value={apiToken}
-                        placeholder="Enter a new token to update"
-                        autocomplete="new-password" />
-                    <p class="text-muted-foreground text-xs">
-                        Created in Admin Center under Apps and integrations → APIs → Zendesk API, by
-                        an admin user.
-                    </p>
-                </div>
+                {#if credentialType === 'api_token'}
+                    <div class="space-y-1.5">
+                        <Label for="email">Admin email</Label>
+                        <Input
+                            id="email"
+                            name="email"
+                            type="email"
+                            bind:value={email}
+                            placeholder="admin@example.com"
+                            autocomplete="username" />
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <Label for="apiToken">
+                            API token
+                            <span class="text-muted-foreground ml-1 font-normal">
+                                (leave blank to keep current)
+                            </span>
+                        </Label>
+                        <Input
+                            id="apiToken"
+                            name="apiToken"
+                            type="password"
+                            bind:value={apiToken}
+                            placeholder="Enter a new token to update"
+                            autocomplete="new-password" />
+                        <p class="text-muted-foreground text-xs">
+                            Created in Admin Center under Apps and integrations → APIs → Zendesk
+                            API, by an admin user.
+                        </p>
+                    </div>
+                {:else}
+                    <div class="space-y-1.5">
+                        <Label for="accessToken">
+                            Access token
+                            <span class="text-muted-foreground ml-1 font-normal">
+                                (leave blank to keep current)
+                            </span>
+                        </Label>
+                        <Input
+                            id="accessToken"
+                            name="accessToken"
+                            type="password"
+                            bind:value={accessToken}
+                            autocomplete="new-password" />
+                        <p class="text-muted-foreground text-xs">
+                            An OAuth access token for this account with read access, belonging to an
+                            admin. Omni cannot refresh it: when it expires, syncs fail until you
+                            save a new token on the settings page.
+                        </p>
+                    </div>
+                {/if}
             </div>
         </Card.Content>
 

@@ -20,7 +20,7 @@ const WATERMARK: i64 = 1_717_063_200; // 2024-05-30T10:00:00Z
 fn client(server: &MockServer) -> ZendeskClient {
     ZendeskClient::with_base_url(
         server.uri(),
-        ZendeskCredentials {
+        ZendeskCredentials::ApiToken {
             email: "admin@example.com".to_string(),
             api_token: "tok".to_string(),
         },

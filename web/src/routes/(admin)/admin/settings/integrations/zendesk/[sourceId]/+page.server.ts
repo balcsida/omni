@@ -28,6 +28,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     return {
         source,
         principalEmail: creds?.principalEmail ?? null,
+        authType: creds?.authType ?? null,
     }
 }
 
@@ -54,6 +55,13 @@ export const actions: Actions = {
         const syncHelpCenter = formData.has('syncHelpCenter')
         const email = (formData.get('email') as string | null)?.trim() ?? ''
         const apiToken = (formData.get('apiToken') as string | null) ?? ''
+        const accessToken = (formData.get('accessToken') as string | null) ?? ''
+        const credentialType = formData.get('credentialType')
+
+        if (credentialType !== 'api_token' && credentialType !== 'access_token') {
+            throw error(400, 'Unknown credential type')
+        }
+        const isAccessToken = credentialType === 'access_token'
 
         if (!syncTickets && !syncHelpCenter) {
             throw error(400, 'Select at least one thing to sync')
@@ -62,15 +70,20 @@ export const actions: Actions = {
         const creds = await db.query.serviceCredentials.findFirst({
             where: eq(serviceCredentials.sourceId, source.id),
         })
-        if (apiToken) {
-            if (!email) {
-                throw error(400, 'Admin email is required when updating the API token')
+        if (!isAccessToken) {
+            if (apiToken) {
+                if (!email) {
+                    throw error(400, 'Admin email is required when updating the API token')
+                }
+            } else if (email && email !== creds?.principalEmail) {
+                throw error(400, 'Enter the API token to change the admin email')
             }
-        } else if (email && email !== creds?.principalEmail) {
-            throw error(400, 'Enter the API token to change the admin email')
         }
-        if (isActive && !creds && !apiToken) {
-            throw error(400, 'Enter admin email and API token before enabling this source')
+        if (isActive && !creds && !apiToken && !accessToken) {
+            throw error(
+                400,
+                'Enter admin email and API token, or an access token, before enabling this source',
+            )
         }
 
         try {
@@ -83,7 +96,22 @@ export const actions: Actions = {
 
             await updateSourceById(source.id, { isActive, config })
 
-            if (apiToken) {
+            const newCredential = isAccessToken
+                ? accessToken
+                    ? {
+                          auth_type: 'bearer_token',
+                          principal_email: null,
+                          credentials: { access_token: accessToken },
+                      }
+                    : null
+                : apiToken
+                  ? {
+                        auth_type: 'api_key',
+                        principal_email: email,
+                        credentials: { email, api_token: apiToken },
+                    }
+                  : null
+            if (newCredential) {
                 const indexerUrl = getConfig().services.indexerUrl
                 const credResponse = await fetch(`${indexerUrl}/service-credentials`, {
                     method: 'POST',
@@ -91,9 +119,7 @@ export const actions: Actions = {
                     body: JSON.stringify({
                         source_id: source.id,
                         provider: 'zendesk',
-                        auth_type: 'api_key',
-                        principal_email: email,
-                        credentials: { email, api_token: apiToken },
+                        ...newCredential,
                         config: {},
                     }),
                 })

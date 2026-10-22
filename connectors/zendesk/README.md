@@ -26,9 +26,18 @@ Limits in v1:
 
 ## Setup
 
+Choose one credential kind. Both must belong to an **admin**: the incremental ticket export is admin-only.
+
+**API token (recommended)**
+
 1. In Zendesk go to **Admin Center → Apps and integrations → APIs → Zendesk API**, enable **Token access** and **Add API token**.
-2. The token must belong to an **admin**: the incremental ticket export is admin-only.
-3. In Omni add a Zendesk source with the subdomain (`acme` for `https://acme.zendesk.com`), the admin e-mail and the token. The credential check calls `GET /api/v2/users/me.json` and rejects tokens that do not belong to an admin.
+2. In Omni add a Zendesk source with the subdomain (`acme` for `https://acme.zendesk.com`), the admin e-mail and the token.
+
+**OAuth access token (advanced)**
+
+Any OAuth access token for the account with read access, belonging to an admin. In Omni add the source with the subdomain and the access token. The connector cannot refresh it: when it expires, syncs fail with HTTP 401 until a new token is saved on the source's settings page.
+
+The credential check calls `GET /api/v2/users/me.json` and rejects credentials that do not belong to an admin.
 
 Source config: `{ "subdomain": "acme", "sync_tickets": true, "sync_help_center": true }`. The subdomain cannot be changed after creation.
 
@@ -44,10 +53,11 @@ Phases: users, group memberships, articles, tickets. Users and memberships are r
 
 ## Not in v1
 
-Attachment contents, OAuth, write actions, MCP tools, realtime sync, agents restricted to anything other than groups, Help Center sections/categories as paths, person sync, and removal of already indexed tickets when `sync_tickets` is turned off (full sync does remove articles when `sync_help_center` is turned off).
+Attachment contents, OAuth token refresh, write actions, MCP tools, realtime sync, agents restricted to anything other than groups, Help Center sections/categories as paths, person sync, and removal of already indexed tickets when `sync_tickets` is turned off (full sync does remove articles when `sync_help_center` is turned off).
 
 ## Troubleshooting
 
 - **Credential check says not authenticated**: wrong e-mail/token pair, token access disabled, or the user is not an admin.
 - **HTTP 403 on `/incremental/tickets/cursor.json`**: the token does not belong to an admin.
 - **Sync fails with "repeated a cursor"**: Zendesk returned the same pagination cursor twice; retry, and report it if it persists.
+- **Sync fails with HTTP 401 when using an OAuth access token**: the token expired or was revoked; save a new token on the source's settings page (the connector cannot refresh it).

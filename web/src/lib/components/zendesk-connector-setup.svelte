@@ -4,6 +4,7 @@
     import { Input } from '$lib/components/ui/input'
     import { Label } from '$lib/components/ui/label'
     import { Checkbox } from '$lib/components/ui/checkbox'
+    import * as Select from '$lib/components/ui/select'
     import { AuthType, ServiceProvider, SourceType, type ZendeskSourceConfig } from '$lib/types'
     import { toast } from 'svelte-sonner'
 
@@ -19,8 +20,12 @@
 
     let sourceName = $state('Zendesk')
     let subdomain = $state('')
+    type CredentialType = 'api_token' | 'access_token'
+
+    let credentialType = $state<CredentialType>('api_token')
     let email = $state('')
     let apiToken = $state('')
+    let accessToken = $state('')
     let syncTickets = $state(true)
     let syncHelpCenter = $state(true)
 
@@ -35,12 +40,17 @@
             )
             return
         }
-        if (!trimmedEmail) {
-            toast.error('Admin email is required')
-            return
-        }
-        if (!apiToken) {
-            toast.error('API token is required')
+        if (credentialType === 'api_token') {
+            if (!trimmedEmail) {
+                toast.error('Admin email is required')
+                return
+            }
+            if (!apiToken) {
+                toast.error('API token is required')
+                return
+            }
+        } else if (!accessToken) {
+            toast.error('Access token is required')
             return
         }
         if (!syncTickets && !syncHelpCenter) {
@@ -81,9 +91,17 @@
                 body: JSON.stringify({
                     sourceId: source.id,
                     provider: ServiceProvider.ZENDESK,
-                    authType: AuthType.API_KEY,
-                    principalEmail: trimmedEmail,
-                    credentials: { email: trimmedEmail, api_token: apiToken },
+                    ...(credentialType === 'api_token'
+                        ? {
+                              authType: AuthType.API_KEY,
+                              principalEmail: trimmedEmail,
+                              credentials: { email: trimmedEmail, api_token: apiToken },
+                          }
+                        : {
+                              authType: AuthType.BEARER_TOKEN,
+                              principalEmail: null,
+                              credentials: { access_token: accessToken },
+                          }),
                 }),
             })
 
@@ -104,7 +122,9 @@
                     if (result?.result?.authenticated === false) {
                         await fetch(`/api/sources/${source.id}`, { method: 'DELETE' })
                         throw new Error(
-                            'Authentication failed. Check the admin email and API token.',
+                            credentialType === 'api_token'
+                                ? 'Authentication failed. Check the admin email and API token.'
+                                : 'Authentication failed. Check the access token.',
                         )
                     }
                 }
@@ -134,8 +154,10 @@
     function resetForm() {
         sourceName = 'Zendesk'
         subdomain = ''
+        credentialType = 'api_token'
         email = ''
         apiToken = ''
+        accessToken = ''
         syncTickets = true
         syncHelpCenter = true
     }
@@ -180,31 +202,67 @@
             </div>
 
             <div class="space-y-1.5">
-                <Label for="zd-email">Admin email</Label>
-                <Input
-                    id="zd-email"
-                    type="email"
-                    bind:value={email}
-                    placeholder="admin@example.com"
-                    autocomplete="username"
-                    disabled={isSubmitting}
-                    required />
+                <Label for="zd-credential-type">Credential type</Label>
+                <Select.Root type="single" bind:value={credentialType} disabled={isSubmitting}>
+                    <Select.Trigger id="zd-credential-type" class="w-full cursor-pointer">
+                        {credentialType === 'api_token'
+                            ? 'API token'
+                            : 'OAuth access token (advanced)'}
+                    </Select.Trigger>
+                    <Select.Content>
+                        <Select.Item value="api_token" class="cursor-pointer"
+                            >API token</Select.Item>
+                        <Select.Item value="access_token" class="cursor-pointer"
+                            >OAuth access token (advanced)</Select.Item>
+                    </Select.Content>
+                </Select.Root>
             </div>
 
-            <div class="space-y-1.5">
-                <Label for="zd-token">API token</Label>
-                <Input
-                    id="zd-token"
-                    type="password"
-                    bind:value={apiToken}
-                    autocomplete="new-password"
-                    disabled={isSubmitting}
-                    required />
-                <p class="text-muted-foreground text-xs">
-                    In Admin Center go to Apps and integrations → APIs → Zendesk API, enable token
-                    access and add an API token. The token must be created by an admin user.
-                </p>
-            </div>
+            {#if credentialType === 'api_token'}
+                <div class="space-y-1.5">
+                    <Label for="zd-email">Admin email</Label>
+                    <Input
+                        id="zd-email"
+                        type="email"
+                        bind:value={email}
+                        placeholder="admin@example.com"
+                        autocomplete="username"
+                        disabled={isSubmitting}
+                        required />
+                </div>
+
+                <div class="space-y-1.5">
+                    <Label for="zd-token">API token</Label>
+                    <Input
+                        id="zd-token"
+                        type="password"
+                        bind:value={apiToken}
+                        autocomplete="new-password"
+                        disabled={isSubmitting}
+                        required />
+                    <p class="text-muted-foreground text-xs">
+                        In Admin Center go to Apps and integrations → APIs → Zendesk API, enable
+                        token access and add an API token. The token must be created by an admin
+                        user.
+                    </p>
+                </div>
+            {:else}
+                <div class="space-y-1.5">
+                    <Label for="zd-access-token">Access token</Label>
+                    <Input
+                        id="zd-access-token"
+                        type="password"
+                        bind:value={accessToken}
+                        autocomplete="new-password"
+                        disabled={isSubmitting}
+                        required />
+                    <p class="text-muted-foreground text-xs">
+                        An OAuth access token for this account with read access, belonging to an
+                        admin. Omni cannot refresh it: when it expires, syncs fail until you save a
+                        new token on the settings page.
+                    </p>
+                </div>
+            {/if}
 
             <div class="space-y-2">
                 <div class="flex items-center gap-2">

@@ -128,6 +128,7 @@ impl ZendeskClient {
     }
 
     pub fn with_base_url(base_url: String, credentials: ZendeskCredentials) -> Result<Self> {
+        credentials.validate()?;
         let http = Client::builder()
             .redirect(Policy::none())
             .timeout(REQUEST_TIMEOUT)
@@ -155,13 +156,14 @@ impl ZendeskClient {
         params: &[(&str, String)],
         label: &str,
     ) -> Result<Vec<u8>, RetryableError> {
-        let response = self
-            .http
-            .get(format!("{}{path}", self.base_url))
-            .basic_auth(
-                format!("{}/token", self.credentials.email),
-                Some(&self.credentials.api_token),
-            )
+        let request = self.http.get(format!("{}{path}", self.base_url));
+        let request = match &self.credentials {
+            ZendeskCredentials::ApiToken { email, api_token } => {
+                request.basic_auth(format!("{email}/token"), Some(api_token))
+            }
+            ZendeskCredentials::Bearer { access_token } => request.bearer_auth(access_token),
+        };
+        let response = request
             .query(params)
             .send()
             .await
