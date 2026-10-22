@@ -666,6 +666,8 @@ def connector_server(connector_port: int) -> str:
     import os
 
     os.environ.setdefault("CONNECTOR_MANAGER_URL", "http://localhost:0")
+    os.environ.setdefault("CONNECTOR_HOST_NAME", "host.docker.internal")
+    os.environ.setdefault("PORT", str(connector_port))
 
     from github_connector import GitHubConnector
     from omni_connector.server import create_app
