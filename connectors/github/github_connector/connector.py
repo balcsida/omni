@@ -116,7 +116,11 @@ class GitHubConnector(Connector):
             return
 
         config = GitHubSourceConfig(**source_config)
-        client = GitHubClient(token=creds.effective_token, base_url=config.api_url)
+        client = GitHubClient(
+            token=creds.effective_token,
+            base_url=config.api_url,
+            api_version=config.api_version,
+        )
 
         try:
             username = await client.validate_token()

@@ -501,6 +501,7 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "githubkit" },
+    { name = "httpx" },
     { name = "omni-connector", extra = ["mcp"] },
 ]
 
@@ -520,7 +521,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "githubkit", specifier = ">=0.14.0" },
+    { name = "githubkit", specifier = ">=0.15.3" },
+    { name = "httpx", specifier = ">=0.23.0" },
     { name = "omni-connector", extras = ["mcp"], directory = "../../sdk/python" },
 ]
 

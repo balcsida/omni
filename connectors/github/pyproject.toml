@@ -13,7 +13,8 @@ authors = [
 ]
 dependencies = [
     "omni-connector[mcp]",
-    "githubkit>=0.14.0",
+    "githubkit>=0.15.3",
+    "httpx>=0.23.0",
 ]
 
 [tool.uv.sources]
